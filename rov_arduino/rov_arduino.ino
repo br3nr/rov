@@ -6,10 +6,23 @@
 void setup(){
   pinMode(4, OUTPUT);
   pinMode(2, OUTPUT);
+  pinMode(9, INPUT_PULLUP);
+  Serial.begin(9600);
 }
 
 void loop(){
-  analogWrite(6,50);
-  analogWrite(5,50);
-  //delay(2000);
+
+  int switchState = digitalRead(9);
+  
+  if (switchState == HIGH) {
+    Serial.println("Button is closed.");
+    analogWrite(6,0);
+    analogWrite(5,0);
+  } else {
+    Serial.println("Button is open.");
+    analogWrite(6,50);
+    analogWrite(5,50);
+  }
+  
+  delay(100);
 }
