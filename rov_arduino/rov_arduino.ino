@@ -2,17 +2,14 @@
 #define IIC_SDA A4
 
 unsigned char current_state = 0;  // 0: stopped, 1: forward, 2: left, 3: right
+int speeds = 100;
 
-void IIC_start();
-void IIC_send(unsigned char send_data);
-void IIC_end();
-
-// Define 4 different images for each state
+// Your original display patterns
 unsigned char images[4][16] = {
-  { 0x00,0x08,0x08,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x08,0x08,0x00 },  // Stopped
-  { 0x00,0x0C,0x0C,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x0C,0x0C,0x00 },  // Forward
-  { 0x00,0x08,0x0C,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x08,0x0C,0x00 },  // Left
-  { 0x00,0x0C,0x08,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x0C,0x08,0x00 }   // Right
+  { 0x00,0x08,0x08,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x08,0x08,0x00 },
+  { 0x00,0x0C,0x0C,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x0C,0x0C,0x00 },
+  { 0x00,0x0C,0x08,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x0C,0x08,0x00 },
+  { 0x00,0x08,0x0C,0x00,0x00,0x30,0x30,0x08,0x08,0x30,0x30,0x00,0x00,0x08,0x0C,0x00 } 
 };
 
 void setup() {
@@ -20,22 +17,19 @@ void setup() {
   pinMode(IIC_SDA, OUTPUT);
   digitalWrite(IIC_SCL, LOW);
   digitalWrite(IIC_SDA, LOW);
-
-  pinMode(4, OUTPUT);
-  pinMode(2, OUTPUT);
-  pinMode(0, INPUT_PULLUP);
-  pinMode(9, INPUT_PULLUP);
-  pinMode(1, INPUT_PULLUP);
+  pinMode(4, OUTPUT);  // right motor control
+  pinMode(2, OUTPUT);  // left motor control
+  pinMode(1, INPUT_PULLUP);  // left button
+  pinMode(9, INPUT_PULLUP);  // forward button
+  pinMode(10, INPUT_PULLUP);  // right button
   Serial.begin(9600);
 }
+
 void loop() {
-  int lowSpeed = 10;   // Low speed value
-  int highSpeed = 250;  // High speed value
-
-  int leftState = digitalRead(0);
+  int leftState = digitalRead(1);
   int forwardState = digitalRead(9);
-  int rightState = digitalRead(1);
-
+  int rightState = digitalRead(10);
+  
   Serial.print("Left: ");
   Serial.print(leftState);
   Serial.print(" Forward: ");
@@ -43,74 +37,71 @@ void loop() {
   Serial.print(" Right: ");
   Serial.println(rightState);
 
-  // Determine current state and control motors
-  if (forwardState == HIGH && rightState == HIGH) {
-    Serial.println("STOPPED");
-    current_state = 0;  // Stopped
-    stopMotors();
-  } else if (forwardState == LOW) {
-    Serial.println("FORWARD");
-    current_state = 1;  // Forward
-    moveForward(highSpeed);
-  } else if (leftState == LOW) {
-    Serial.println("LEFT");
-    current_state = 2;  // Left
-    turnLeft(highSpeed, lowSpeed);
-  } else if (rightState == LOW) {
-    Serial.println("RIGHT");
-    current_state = 3;  // Right
-    turnRight(highSpeed, lowSpeed);
+  if (forwardState == LOW) {
+    car_front();
+    current_state = 1;
+    updateDisplay();
   }
-
-  updateDisplay();
-  delay(100);
+  else if (leftState == LOW) {
+    car_left();
+    current_state = 2;
+    updateDisplay();
+  }
+  else if (rightState == LOW) {
+    car_right();
+    current_state = 3;
+    updateDisplay();
+  }
+  else {
+    car_Stop();
+    current_state = 0;
+    updateDisplay();
+  }
+  
+  delay(10);
 }
 
-void moveForward(int speed) {
-  digitalWrite(2, LOW);
+void car_front() {
+  digitalWrite(2, LOW); 
+  analogWrite(6, speeds);
   digitalWrite(4, LOW);
-  analogWrite(6, speed);
-  analogWrite(5, speed);
+  analogWrite(5, speeds);
 }
 
-void turnLeft(int highSpeed, int lowSpeed) {
+void car_left() {
+  digitalWrite(2, HIGH); 
+  analogWrite(6, (255 - speeds)); 
+  digitalWrite(4, LOW);  
+  analogWrite(5, speeds); 
+}
+
+void car_right() {
+  digitalWrite(2, LOW);  
+  analogWrite(6, speeds); 
+  digitalWrite(4, HIGH);  
+  analogWrite(5, (255 - speeds));
+}
+
+void car_Stop() {
   digitalWrite(2, LOW);
-  analogWrite(6, lowSpeed);
-  digitalWrite(4, HIGH);
-  analogWrite(5, highSpeed);
-}
-
-void turnRight(int highSpeed, int lowSpeed) {
-  digitalWrite(2, HIGH);
-  analogWrite(6, highSpeed);
-  digitalWrite(4, LOW);
-  analogWrite(5, lowSpeed);
-}
-
-void stopMotors() {
-  digitalWrite(2, LOW);
-  digitalWrite(4, LOW);
   analogWrite(6, 0);
+  digitalWrite(4, LOW);
   analogWrite(5, 0);
 }
 
 void updateDisplay() {
-  // Display control
   IIC_start();
   IIC_send(0x40);
   IIC_end();
-
   IIC_start();
   IIC_send(0xc0);
   for (char i = 0; i < 16; i++) {
     IIC_send(images[current_state][i]);
   }
   IIC_end();
-
   IIC_start();
-  IIC_send(0x8A);  // Set brightness
+  IIC_send(0x8A);
   IIC_end();
-
   delay(100);
 }
 
